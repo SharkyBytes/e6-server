@@ -30,7 +30,7 @@ app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok", message: "Server is running" });
 });
 
-const PORT = process.env.PORT || 5001; // Changed from 5000 to avoid conflicts
+const PORT = process.env.PORT || 5000; // Changed from 5000 to avoid conflicts
 const httpServer = createServer(app);
 
 // Create Socket.io server
