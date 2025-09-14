@@ -54,21 +54,21 @@ class ResourceManager {
    */
   async checkResources() {
     // Check if we have capacity for another container based on our fixed limit
-    if (this.activeContainers >= this.maxConcurrentContainers) {
-      console.log(`[RESOURCES] No capacity for new containers: ${this.activeContainers}/${this.maxConcurrentContainers} active`);
-      return false;
-    }
+    // if (this.activeContainers >= this.maxConcurrentContainers) {
+    //   console.log(`[RESOURCES] No capacity for new containers: ${this.activeContainers}/${this.maxConcurrentContainers} active`);
+    //   return false;
+    // }
     
-    // Calculate memory usage based on active containers
-    const estimatedUsedMemoryMB = this.activeContainers * this.containerMemoryEstimate;
-    const maxUsableMemoryMB = this.totalMemoryMB * this.memoryUsageThreshold;
+    // // Calculate memory usage based on active containers
+    // const estimatedUsedMemoryMB = this.activeContainers * this.containerMemoryEstimate;
+    // const maxUsableMemoryMB = this.totalMemoryMB * this.memoryUsageThreshold;
     
-    // Check if adding another container would exceed our memory threshold
-    if (estimatedUsedMemoryMB + this.containerMemoryEstimate > maxUsableMemoryMB) {
-      const usedPercent = (estimatedUsedMemoryMB / this.totalMemoryMB) * 100;
-      console.log(`[RESOURCES] Insufficient memory: ${usedPercent.toFixed(1)}% used, exceeds ${this.memoryUsageThreshold * 100}% threshold with new container`);
-      return false;
-    }
+    // // Check if adding another container would exceed our memory threshold
+    // if (estimatedUsedMemoryMB + this.containerMemoryEstimate > maxUsableMemoryMB) {
+    //   const usedPercent = (estimatedUsedMemoryMB / this.totalMemoryMB) * 100;
+    //   console.log(`[RESOURCES] Insufficient memory: ${usedPercent.toFixed(1)}% used, exceeds ${this.memoryUsageThreshold * 100}% threshold with new container`);
+    //   return false;
+    // }
     
     return true;
   }
