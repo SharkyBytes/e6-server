@@ -1,0 +1,15 @@
+
+
+{
+  "git_link": "https://github.com/mbhagyesh07/Test1",
+  "start_directory": "",
+  "initial_cmds": ["npm install"],
+  "env_file": ".env",
+  "build_cmd": "node server.js",
+  "memory_limit": "512MB",
+  "timeout": 300000,
+  "runtime": "nodejs",
+  "env": {
+    "NODE_ENV": "development"
+  }
+}

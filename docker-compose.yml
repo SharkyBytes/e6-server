@@ -1,0 +1,33 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:14-alpine
+    container_name: e6data-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: e6data
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - e6data-network
+
+  redis:
+    image: redis:alpine
+    container_name: e6data-redis
+    restart: always
+    ports:
+      - "6379:6379"
+    networks:
+      - e6data-network
+
+networks:
+  e6data-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
