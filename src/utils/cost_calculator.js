@@ -60,10 +60,23 @@ function calculateJobCost(job) {
   }
   
   // Calculate duration in seconds
-  const startTime = job.processedAt ? new Date(job.processedAt) : new Date(job.createdAt);
-  const endTime = job.finishedAt ? new Date(job.finishedAt) : new Date();
-  const durationSeconds = Math.max(1, (endTime - startTime) / 1000);
-  
+  let durationSeconds = 0;
+  try {
+    // Handle both string dates and numeric timestamps
+    const startTime = job.processedAt ? 
+      (typeof job.processedAt === 'number' ? job.processedAt : new Date(job.processedAt).getTime()) : 
+      (typeof job.createdAt === 'number' ? job.createdAt : new Date(job.createdAt).getTime());
+    
+    const endTime = job.finishedAt ? 
+      (typeof job.finishedAt === 'number' ? job.finishedAt : new Date(job.finishedAt).getTime()) : 
+      Date.now();
+    
+    durationSeconds = Math.max(1, (endTime - startTime) / 1000);
+  } catch (error) {
+    console.error('Error calculating duration:', error);
+    durationSeconds = 10; // Default to 10 seconds if calculation fails
+  }
+
   // Parse memory limit
   let memoryGB = 0.5; // Default 512MB
   if (job.data && job.data.memory_limit) {

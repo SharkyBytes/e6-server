@@ -13,8 +13,12 @@ const pgConfig = {
   password: process.env.POSTGRES_PASSWORD || 'postgres',
   max: 20, // Maximum number of clients in the pool
   idleTimeoutMillis: 30000, // How long a client is allowed to remain idle before being closed
-  connectionTimeoutMillis: 2000, // How long to wait for a connection
+  connectionTimeoutMillis: 5000, // How long to wait for a connection
+  ssl: process.env.POSTGRES_SSL === 'true' ? { rejectUnauthorized: false } : false, // Enable SSL if configured
 };
+
+// Log connection info (without password)
+console.log(`Connecting to PostgreSQL at ${pgConfig.host}:${pgConfig.port}/${pgConfig.database} as ${pgConfig.user}`);
 
 // Create a connection pool
 const pool = new pg.Pool(pgConfig);

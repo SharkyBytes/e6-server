@@ -3,13 +3,18 @@ import cors from "cors";
 import { v4 as uuidv4 } from 'uuid';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
+import dotenv from 'dotenv';
 import submitRouter from './routes/submit.js';
 import jobsRouter from './routes/jobs.js';
 import metricsRouter from './routes/metrics.js';
 import { jobWorker } from './queue/index.js';
 import { startMetricsCollection } from './monitoring/system_metrics.js';
 import { initializeDatabase } from './db/index.js';
+import { createDatabaseIfNotExists } from './db/create_database.js';
 import { initPubSub } from './pubsub/redis_pubsub.js';
+
+// Load environment variables
+dotenv.config();
 
 const app = express();
 app.use(cors());
@@ -25,7 +30,7 @@ app.get("/health", (req, res) => {
   res.status(200).json({ status: "ok", message: "Server is running" });
 });
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.PORT || 5001; // Changed from 5000 to avoid conflicts
 const httpServer = createServer(app);
 
 // Create Socket.io server
@@ -61,10 +66,23 @@ global.io = io;
 // Initialize Redis pub/sub
 initPubSub(io);
 
-// Initialize database and start metrics collection
-initializeDatabase()
-  .then(() => {
-    console.log('Database initialized successfully');
+// First create database if it doesn't exist, then initialize schema
+createDatabaseIfNotExists()
+  .then(dbCreated => {
+    if (!dbCreated) {
+      console.error('Failed to create database. Exiting...');
+      process.exit(1);
+    }
+    
+    // Now initialize database schema
+    return initializeDatabase();
+  })
+  .then(initialized => {
+    if (!initialized) {
+      console.warn('Database schema initialization had issues, but we will continue...');
+    } else {
+      console.log('Database initialized successfully');
+    }
     
     // Start metrics collection
     startMetricsCollection();
