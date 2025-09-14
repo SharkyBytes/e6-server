@@ -7,7 +7,7 @@ dotenv.config();
 // Redis configuration using environment variables
 const redisConfig = {
   port: process.env.REDIS_PORT || 6379,
-  host: process.env.REDIS_HOST || "127.0.0.1",
+  host: process.env.REDIS_HOST || "10.147.201.102",
   retryStrategy: (times) => {
     // Retry connection with exponential backoff
     const delay = Math.min(times * 50, 2000);

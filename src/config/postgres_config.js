@@ -6,11 +6,11 @@ dotenv.config();
 
 // PostgreSQL connection configuration
 const pgConfig = {
-  host: process.env.POSTGRES_HOST || 'localhost',
+  host: process.env.POSTGRES_HOST || '34.172.99.44',
   port: process.env.POSTGRES_PORT || 5432,
   database: process.env.POSTGRES_DB || 'e6data',
-  user: process.env.POSTGRES_USER || 'postgres',
-  password: process.env.POSTGRES_PASSWORD || 'postgres',
+  user: process.env.POSTGRES_USER || 'Postgres01@',
+  password: process.env.POSTGRES_PASSWORD || 'Postgres01@',
   max: 20, // Maximum number of clients in the pool
   idleTimeoutMillis: 30000, // How long a client is allowed to remain idle before being closed
   connectionTimeoutMillis: 5000, // How long to wait for a connection
