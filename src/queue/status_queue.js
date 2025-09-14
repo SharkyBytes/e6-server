@@ -8,8 +8,14 @@ const jobLogs = {};
 // Log deduplication tracking
 const processedLogs = {};
 
-// Create a queue for job status updates
-export const statusQueue = new Queue('status_queue', { connection: redisConnection });
+// Create a queue for job status updates with required BullMQ options
+export const statusQueue = new Queue('status_queue', { 
+  connection: redisConnection,
+  defaultJobOptions: {
+    removeOnComplete: false,
+    removeOnFail: false
+  }
+});
 
 // Create a worker to process job status updates
 const statusWorker = new Worker(
@@ -75,7 +81,13 @@ const statusWorker = new Worker(
       throw error;
     }
   },
-  { connection: redisConnection }
+  { 
+    connection: redisConnection,
+    // Required BullMQ options
+    autorun: true,
+    removeOnComplete: false,
+    removeOnFail: false
+  }
 );
 
 // Handle worker events

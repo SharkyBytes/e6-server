@@ -1,13 +1,9 @@
 import path from 'path';
 import os from 'os';
-import IORedis from 'ioredis';
-import { redis_connection_string } from '../config/redis_config.js';
+import { redisInstance } from '../config/redis_config.js';
 
-// Redis connection
-export const redisConnection = new IORedis(redis_connection_string, {
-  maxRetriesPerRequest: null,
-  enableReadyCheck: false,
-});
+// Use the existing Redis instance
+export const redisConnection = redisInstance;
 
 // System configuration
 export const QUEUE_CONFIG = {

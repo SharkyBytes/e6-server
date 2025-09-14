@@ -1,11 +1,8 @@
-import IORedis from "ioredis";
 import { Queue, Worker, QueueEvents } from "bullmq";
-import { redis_connection_string } from "../config/redis_config.js";
+import { redisInstance } from "../config/redis_config.js";
 
-const connection = new IORedis(redis_connection_string, {
-  maxRetriesPerRequest: null,
-  enableReadyCheck: false,
-});
+// Use the existing Redis instance with BullMQ options
+const connection = redisInstance;
 
 const job_queue = new Queue("job_queue", { connection,});
 

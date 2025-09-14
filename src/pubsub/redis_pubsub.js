@@ -1,9 +1,9 @@
-import IORedis from 'ioredis';
-import { redis_connection_string } from '../config/redis_config.js';
+import { redisInstance } from '../config/redis_config.js';
 
-// Create Redis publisher and subscriber clients
-const publisher = new IORedis(redis_connection_string);
-const subscriber = new IORedis(redis_connection_string);
+// Use the existing Redis instance for publisher
+const publisher = redisInstance;
+// Create a duplicate connection for subscriber
+const subscriber = redisInstance.duplicate();
 
 // Define channels
 const CHANNELS = {
