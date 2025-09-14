@@ -7,63 +7,28 @@ import db from '../db/index.js';
 // Metrics collection interval in milliseconds
 const METRICS_INTERVAL = 10000; // 10 seconds
 
-let lastCpuUsage = null;
-let lastCpuTime = null;
+let metricsInterval = null;
+let currentMetrics = null;
 
 /**
- * Calculate CPU usage percentage
- * @returns {Promise<number>} CPU usage percentage
- */
-async function getCpuUsage() {
-  const cpus = os.cpus();
-  
-  // Calculate the current CPU times
-  const currentCpuTime = Date.now();
-  let totalIdle = 0;
-  let totalTick = 0;
-  
-  for (const cpu of cpus) {
-    for (const type in cpu.times) {
-      totalTick += cpu.times[type];
-    }
-    totalIdle += cpu.times.idle;
-  }
-  
-  // Calculate CPU usage if we have previous measurements
-  if (lastCpuUsage !== null && lastCpuTime !== null) {
-    const idleDifference = totalIdle - lastCpuUsage.idle;
-    const totalDifference = totalTick - lastCpuUsage.total;
-    const timeDifference = currentCpuTime - lastCpuTime;
-    
-    // Calculate the CPU usage as a percentage
-    const cpuUsage = 100 - Math.round(idleDifference / totalDifference * 100);
-    
-    // Update the last CPU usage
-    lastCpuUsage = { idle: totalIdle, total: totalTick };
-    lastCpuTime = currentCpuTime;
-    
-    return cpuUsage;
-  }
-  
-  // First run, store the values and return 0
-  lastCpuUsage = { idle: totalIdle, total: totalTick };
-  lastCpuTime = currentCpuTime;
-  
-  return 0;
-}
-
-/**
- * Get memory usage
+ * Get memory usage based on fixed GCP server resources
  * @returns {Object} Memory usage in bytes
  */
 function getMemoryUsage() {
-  const totalMemory = os.totalmem();
-  const freeMemory = os.freemem();
-  const usedMemory = totalMemory - freeMemory;
+  // Use resourceManager's memory stats instead of local system
+  if (resourceManager.getMemoryStats) {
+    return resourceManager.getMemoryStats();
+  }
+  
+  // Fallback to fixed calculation if getMemoryStats is not available
+  const totalMemory = resourceManager.totalMemoryMB * 1024 * 1024; // Convert MB to bytes
+  const activeContainers = resourceManager.activeContainers || 0;
+  const containerMemoryEstimate = resourceManager.containerMemoryEstimate * 1024 * 1024; // Convert MB to bytes
+  const usedMemory = activeContainers * containerMemoryEstimate;
   
   return {
     total: totalMemory,
-    free: freeMemory,
+    free: totalMemory - usedMemory,
     used: usedMemory,
     percentUsed: Math.round((usedMemory / totalMemory) * 100)
   };
@@ -107,24 +72,25 @@ async function getQueueStats() {
  * @returns {Promise<Object>} System metrics
  */
 export async function collectMetrics() {
-  const cpuUsage = await getCpuUsage();
+  // Get memory usage from resource manager
   const memory = getMemoryUsage();
+  
+  // Get queue statistics
   const queueStats = await getQueueStats();
+  
+  // Get container information
   const activeContainers = resourceManager.activeContainers || 0;
   const maxContainers = resourceManager.getMaxConcurrentContainers();
   
+  // Get CPU stats from resource manager or use default
+  const cpuStats = resourceManager.getCpuStats ? 
+    resourceManager.getCpuStats() : 
+    { cores: os.cpus().length, usage: 0 };
+  
   const metrics = {
     timestamp: new Date(),
-    cpu: {
-      usage: cpuUsage,
-      cores: os.cpus().length
-    },
-    memory: {
-      total: memory.total,
-      free: memory.free,
-      used: memory.used,
-      percentUsed: memory.percentUsed
-    },
+    cpu: cpuStats,
+    memory: memory,
     containers: {
       active: activeContainers,
       max: maxContainers
@@ -132,7 +98,7 @@ export async function collectMetrics() {
     queue: queueStats,
     system: {
       uptime: os.uptime(),
-      platform: os.platform(),
+      platform: 'GCP Server (8GB RAM)',
       hostname: os.hostname(),
       loadavg: os.loadavg()
     }
@@ -143,7 +109,7 @@ export async function collectMetrics() {
     const metricsData = {
       totalMemory: memory.total,
       freeMemory: memory.free,
-      cpuUsage: cpuUsage,
+      cpuUsage: cpuStats.usage,
       activeContainers: activeContainers,
       queuedJobs: queueStats.waiting + queueStats.delayed
     };
@@ -154,12 +120,11 @@ export async function collectMetrics() {
     console.error('Error saving/publishing metrics:', error);
   }
   
+  // Update current metrics
+  currentMetrics = metrics;
+  
   return metrics;
 }
-
-// Start collecting metrics periodically
-let metricsInterval = null;
-let currentMetrics = null;
 
 /**
  * Start metrics collection
@@ -180,7 +145,7 @@ export function startMetricsCollection() {
   // Set up interval for collecting metrics
   metricsInterval = setInterval(async () => {
     try {
-      currentMetrics = await collectMetrics();
+      await collectMetrics();
     } catch (error) {
       console.error('Error collecting metrics:', error);
     }

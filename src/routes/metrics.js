@@ -1,7 +1,8 @@
 import { Router } from "express";
-import { getLatestMetrics } from "../monitoring/system_metrics.js";
+import { getLatestMetrics, collectMetrics } from "../monitoring/system_metrics.js";
 import db from "../db/index.js";
 import { jobQueue } from "../queue/index.js";
+import { resourceManager } from "../queue/resource_manager.js";
 
 const router = Router();
 
@@ -117,6 +118,38 @@ router.get("/dashboard", async (req, res) => {
     res.status(500).json({
       success: false,
       error: err.message || "Failed to get dashboard data"
+    });
+  }
+});
+
+// Force recalculation of max containers
+router.post("/recalculate", async (req, res) => {
+  try {
+    // Recalculate max containers
+    const maxContainers = await resourceManager.calculateMaxContainers();
+    
+    // Update the resource manager's max containers
+    resourceManager.maxConcurrentContainers = maxContainers;
+    
+    // Collect fresh metrics
+    const metrics = await collectMetrics();
+    
+    res.status(200).json({
+      success: true,
+      message: `Max containers recalculated: ${maxContainers}`,
+      containers: {
+        active: resourceManager.activeContainers,
+        max: maxContainers,
+        memoryPerContainer: resourceManager.containerMemoryEstimate,
+        totalMemoryMB: resourceManager.totalMemoryMB,
+        usageThreshold: resourceManager.memoryUsageThreshold
+      }
+    });
+  } catch (err) {
+    console.error("[ERROR] Failed to recalculate max containers:", err);
+    res.status(500).json({
+      success: false,
+      error: err.message || "Failed to recalculate max containers"
     });
   }
 });

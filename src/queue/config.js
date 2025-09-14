@@ -10,9 +10,11 @@ export const QUEUE_CONFIG = {
   // Workspace directory for job files
   workspaceDir: path.join(os.tmpdir(), 'e6data-workspaces'),
   
-  // Default container settings
-  defaultMaxContainers: 10,
+  // GCP server settings (8GB RAM)
+  defaultMaxContainers: 12,
   containerMemoryEstimate: 512, // MB per container
+  totalServerMemoryMB: 8192, // 8GB RAM on GCP server
+  memoryUsageThreshold: 0.8, // Use 80% of available memory
   
   // Queue settings
   retryAttempts: 3,
