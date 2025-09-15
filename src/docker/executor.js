@@ -5,6 +5,7 @@ import path from 'path';
 import { getRuntimeConfig, isWindows } from './config.js';
 import { queueLogUpdate, saveJobLogsToDatabase } from '../queue/status_queue.js';
 import { publishJobLogs } from '../pubsub/redis_pubsub.js';
+import { DOCKER_CONFIG, } from './config.js';
 
 const execPromise = promisify(exec);
 
