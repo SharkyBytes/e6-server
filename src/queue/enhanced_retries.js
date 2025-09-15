@@ -5,11 +5,8 @@ import db from '../db/index.js';
 
 // Retry delay configuration (in milliseconds)
 const RETRY_DELAYS = [
-  1000,    // 1 second
   5000,    // 5 seconds
   15000,   // 15 seconds
-  60000,   // 1 minute
-  300000   // 5 minutes
 ];
 
 // Maximum number of retries before considering job as failed
