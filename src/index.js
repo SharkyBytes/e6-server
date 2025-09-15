@@ -33,24 +33,7 @@ app.use("/api/metrics", metricsRouter);
 
 // Simple health check endpoint - useful for testing if server is running
 app.get("/health", async (_req, res) => {
-  try {
-    const { getRedisStatus } = await import('./utils/redis_check.js');
-    const redisStatus = await getRedisStatus();
-
-    res.status(200).json({
-      status: "ok",
-      message: "Server is running",
-      timestamp: new Date().toISOString(),
-      redis: redisStatus
-    });
-  } catch (error) {
-    res.status(200).json({
-      status: "ok",
-      message: "Server is running",
-      timestamp: new Date().toISOString(),
-      redis: { status: 'unknown', error: error.message }
-    });
-  }
+  res.status(200).json({ success: true, message: "Server is healthy" });
 });
 
 // Get the port from environment variables, or use 5000 as default
