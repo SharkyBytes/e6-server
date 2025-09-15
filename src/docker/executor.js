@@ -218,6 +218,11 @@ function buildDockerCommand({
  * @returns {Promise<Object>} The execution result
  */
 async function executeDockerCommand(dockerCmd, jobId, timeout) {
+  // Remove any "sudo" if present in the command as it causes issues in some environments
+  dockerCmd = dockerCmd.replace(/^\s*sudo\s+/, '');
+  
+  console.log(`[CMD] Running command for job ${jobId}: ${dockerCmd}`);
+  
   return new Promise((resolve, reject) => {
     // Use cmd.exe on Windows and sh on Unix-like systems
     const process = isWindows 
