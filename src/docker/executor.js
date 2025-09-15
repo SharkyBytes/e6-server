@@ -118,7 +118,7 @@ export async function runJobInContainer(job, workspaceDir, resourceManager) {
     // Clean up and decrement active containers
     try {
       // Force remove container if it's still running
-      await execPromise(`docker rm -f e6data-${jobId} || true`);
+      await execPromise(`sudo docker rm -f e6data-${jobId} || true`);
       console.log(`[INFO] Removed container for job ${jobId}`);
       
       // Clean up workspace
@@ -154,7 +154,7 @@ function buildDockerCommand({
     // For Windows, use a different volume mount syntax
     if (submission_type === 'raw_code') {
       // Raw code execution
-      return `docker run --rm ` +
+      return `sudo docker run --rm ` +
         `--name e6data-${jobId} ` +
         `--memory=${memory_limit} ` +
         `--workdir=/app ` +
@@ -165,7 +165,7 @@ function buildDockerCommand({
         `${build_cmd}"`;
     } else {
       // Git repo execution
-      return `docker run --rm ` +
+      return `sudo docker run --rm ` +
         `--name e6data-${jobId} ` +
         `--memory=${memory_limit} ` +
         `--workdir=/app ` +
@@ -181,7 +181,7 @@ function buildDockerCommand({
     // For Unix systems
     if (submission_type === 'raw_code') {
       // Raw code execution
-      return `docker run --rm \
+      return `sudo docker run --rm \
         --name e6data-${jobId} \
         --memory=${memory_limit} \
         --network=host \
@@ -193,7 +193,7 @@ function buildDockerCommand({
         ${build_cmd}"`;
     } else {
       // Git repo execution
-      return `docker run --rm \
+      return `sudo docker run --rm \
         --name e6data-${jobId} \
         --memory=${memory_limit} \
         --network=host \
@@ -230,7 +230,7 @@ async function executeDockerCommand(dockerCmd, jobId, timeout) {
       // Kill the process
       if (isWindows) {
         // On Windows, we need to kill the Docker container directly
-        exec(`docker kill e6data-${jobId}`);
+        exec(`sudo docker kill e6data-${jobId}`);
       } else {
         process.kill('SIGTERM');
       }
