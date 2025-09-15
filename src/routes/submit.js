@@ -41,11 +41,12 @@ const handleSubmit = async (req, res) => {
         // Determine submission type and validate required fields
         const isRawCode = raw_code && raw_code.trim().length > 0;
         const isGitRepo = git_link && git_link.trim().length > 0;
+        const isDockerImage = custom_docker_image && custom_docker_image.trim().length > 0;
         
-        if (!isRawCode && !isGitRepo) {
+        if (!isRawCode && !isGitRepo && !isDockerImage) {
             return res.status(400).json({ 
                 success: false, 
-                error: "Either GitHub repository URL or raw code is required" 
+                error: "Either GitHub repository URL, raw code, or Docker image is required" 
             });
         }
         
@@ -144,26 +145,63 @@ const handleSubmit = async (req, res) => {
 
         console.log(`[INFO] Submitting job: ${jobId}`);
         
-        // Add job to queue
-        const job = await jobQueue.add('process-repo', jobPayload, {
-            jobId,
-            attempts: QUEUE_CONFIG.retryAttempts,
-            backoff: {
-                type: QUEUE_CONFIG.retryBackoffType,
-                delay: QUEUE_CONFIG.retryBackoffDelay
-            },
-            removeOnComplete: QUEUE_CONFIG.removeOnComplete,
-            removeOnFail: QUEUE_CONFIG.removeOnFail
-        });
+        try {
+            // Add job to queue
+            const job = await jobQueue.add('process-repo', jobPayload, {
+                jobId,
+                attempts: QUEUE_CONFIG.retryAttempts,
+                backoff: {
+                    type: QUEUE_CONFIG.retryBackoffType,
+                    delay: QUEUE_CONFIG.retryBackoffDelay
+                },
+                removeOnComplete: QUEUE_CONFIG.removeOnComplete,
+                removeOnFail: QUEUE_CONFIG.removeOnFail
+            });
 
-        console.log(`[SUCCESS] Job added to queue with ID: ${job.id}`);
+            console.log(`[SUCCESS] Job added to queue with ID: ${job.id}`);
+            
+            // Immediately save job to database to avoid "job not found" issues
+            try {
+                await db.saveJob(job, 'waiting');
+                console.log(`[SUCCESS] Job ${job.id} saved to database`);
+            } catch (dbError) {
+                console.error(`[ERROR] Failed to save job to database: ${dbError.message}`);
+                // Don't fail the request if database save fails
+            }
 
-        res.status(200).json({
-            success: true,
-            jobId: job.id,
-            message: "Job submitted successfully",
-            status: "queued"
-        });
+            res.status(200).json({
+                success: true,
+                jobId: job.id,
+                message: "Job submitted successfully",
+                status: "queued"
+            });
+        } catch (queueError) {
+            console.error('[ERROR] Queue error:', queueError);
+            
+            // If Redis/Queue is not available, still accept the job but save to database
+            console.log('[FALLBACK] Redis not available, saving job to database only');
+            
+            try {
+                // Create a minimal job object for database storage
+                const fallbackJob = {
+                    id: jobId,
+                    data: jobPayload,
+                    timestamp: Date.now()
+                };
+                
+                await db.saveJob(fallbackJob, 'pending');
+                console.log(`[SUCCESS] Fallback job ${jobId} saved to database`);
+            } catch (dbError) {
+                console.error(`[ERROR] Failed to save fallback job to database: ${dbError.message}`);
+            }
+            
+            res.status(200).json({
+                success: true,
+                jobId: jobId,
+                message: "Job submitted successfully (Redis unavailable - job will be processed when Redis is available)",
+                status: "pending"
+            });
+        }
     } catch (err) {
         console.error("[ERROR] Failed to submit job:", err);
         res.status(500).json({

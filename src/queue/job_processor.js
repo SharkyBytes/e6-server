@@ -78,11 +78,18 @@ worker.on('completed', async (job, result) => {
   console.log(`Job ${job.id} has been completed`);
   
   try {
-    // Queue status update and publish to Redis
+    // Calculate duration using BullMQ's built-in timestamps
+    // processedOn is when the job started processing, finishedOn is when it completed
+    const startTime = job.processedOn || Date.now();
+    const endTime = job.finishedOn || Date.now();
+    
     const jobResult = {
       exitCode: result.exitCode || 0,
-      duration: Date.now() - job.timestamp
+      duration: Math.max(0, endTime - startTime) // Ensure non-negative duration
     };
+    
+    console.log(`Job ${job.id} duration: ${jobResult.duration}ms`);
+    
     await queueStatusUpdate(job.id, 'completed', jobResult);
     await publishJobStatus(job.id, 'completed', jobResult);
   } catch (error) {

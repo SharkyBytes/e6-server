@@ -9,7 +9,46 @@ const router = Router();
 router.get("/:jobId", async (req, res) => {
   try {
     const { jobId } = req.params;
-    const job = await jobQueue.getJob(jobId);
+    
+    // First try to get job from queue
+    let job = await jobQueue.getJob(jobId);
+    let fromDatabase = false;
+    
+    if (!job) {
+      // If not found in queue, check database as fallback
+      try {
+        const dbJob = await db.pool.query(
+          'SELECT * FROM jobs WHERE job_id = $1',
+          [jobId]
+        );
+        
+        if (dbJob.rows.length > 0) {
+          const dbJobData = dbJob.rows[0];
+          fromDatabase = true;
+          
+          // Create a job-like object from database data
+          job = {
+            id: dbJobData.job_id,
+            data: {
+              git_link: dbJobData.git_link,
+              raw_code: dbJobData.raw_code,
+              docker_image: dbJobData.docker_image,
+              runtime: dbJobData.runtime,
+              memory_limit: dbJobData.memory_limit,
+              timeout: dbJobData.timeout,
+              submission_type: dbJobData.submission_type,
+              submitted_at: dbJobData.submitted_at
+            },
+            timestamp: new Date(dbJobData.submitted_at).getTime(),
+            processedOn: dbJobData.start_time ? new Date(dbJobData.start_time).getTime() : null,
+            finishedOn: dbJobData.end_time ? new Date(dbJobData.end_time).getTime() : null,
+            returnvalue: dbJobData.result ? JSON.parse(dbJobData.result) : null
+          };
+        }
+      } catch (dbError) {
+        console.error("[ERROR] Failed to check database for job:", dbError);
+      }
+    }
     
     if (!job) {
       return res.status(404).json({ 
@@ -18,7 +57,19 @@ router.get("/:jobId", async (req, res) => {
       });
     }
     
-    const state = await job.getState();
+    // Get job state
+    let state;
+    if (fromDatabase) {
+      // Determine state from database data
+      const dbJobData = await db.pool.query(
+        'SELECT status FROM jobs WHERE job_id = $1',
+        [jobId]
+      );
+      state = dbJobData.rows[0]?.status || 'waiting';
+    } else {
+      state = await job.getState();
+    }
+    
     const result = job.returnvalue;
     
     // Add cost calculation for completed or failed jobs
@@ -40,7 +91,8 @@ router.get("/:jobId", async (req, res) => {
       createdAt: job.timestamp,
       processedAt: job.processedOn,
       finishedAt: job.finishedOn,
-      costInfo: costInfo
+      costInfo: costInfo,
+      source: fromDatabase ? 'database' : 'queue'
     });
   } catch (err) {
     console.error("[ERROR] Failed to get job status:", err);

@@ -62,13 +62,13 @@ function calculateJobCost(job) {
   // Calculate duration in seconds
   let durationSeconds = 0;
   try {
-    // Handle both string dates and numeric timestamps
-    const startTime = job.processedAt ? 
-      (typeof job.processedAt === 'number' ? job.processedAt : new Date(job.processedAt).getTime()) : 
-      (typeof job.createdAt === 'number' ? job.createdAt : new Date(job.createdAt).getTime());
+    // Use BullMQ's correct property names
+    const startTime = job.processedOn ? 
+      (typeof job.processedOn === 'number' ? job.processedOn : new Date(job.processedOn).getTime()) : 
+      (typeof job.timestamp === 'number' ? job.timestamp : new Date(job.timestamp).getTime());
     
-    const endTime = job.finishedAt ? 
-      (typeof job.finishedAt === 'number' ? job.finishedAt : new Date(job.finishedAt).getTime()) : 
+    const endTime = job.finishedOn ? 
+      (typeof job.finishedOn === 'number' ? job.finishedOn : new Date(job.finishedOn).getTime()) : 
       Date.now();
     
     durationSeconds = Math.max(1, (endTime - startTime) / 1000);

@@ -98,22 +98,25 @@ export async function saveJob(job, status) {
  */
 export async function updateJobStatus(jobId, status, result = {}) {
   try {
-    // Ensure result is an object before destructuring
+   
     const safeResult = result || {};
     const { exitCode, duration } = safeResult;
     
+    // Start building our SQL query step by step
     let query = 'UPDATE jobs SET status = $1';
     const params = [status];
     
-    // Add optional parameters if provided
+    // Add different fields based on the job status
     if (status === 'completed' || status === 'failed') {
       query += ', end_time = NOW()';
       
+      // Add exit code if we have it
       if (exitCode !== undefined) {
         query += ', exit_code = $' + (params.length + 1);
         params.push(exitCode);
       }
       
+      // Add duration if we have it
       if (duration !== undefined) {
         query += ', duration = $' + (params.length + 1);
         params.push(duration);
@@ -122,9 +125,11 @@ export async function updateJobStatus(jobId, status, result = {}) {
       query += ', start_time = NOW()';
     }
     
+    // Add the WHERE clause to specify which job to update
     query += ' WHERE id = $' + (params.length + 1);
     params.push(jobId);
     
+    // Execute the query
     await pgPool.query(query, params);
     return true;
   } catch (error) {

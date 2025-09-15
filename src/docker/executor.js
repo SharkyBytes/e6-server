@@ -2,10 +2,9 @@ import { exec, spawn } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs/promises';
 import path from 'path';
-import { getRuntimeConfig, isWindows } from './config.js';
+import { getRuntimeConfig, isWindows, DOCKER_CONFIG } from './config.js';
 import { queueLogUpdate, saveJobLogsToDatabase } from '../queue/status_queue.js';
 import { publishJobLogs } from '../pubsub/redis_pubsub.js';
-import { DOCKER_CONFIG, } from './config.js';
 
 const execPromise = promisify(exec);
 
@@ -24,7 +23,6 @@ export async function runJobInContainer(job, workspaceDir, resourceManager) {
     dependencies = [],
     start_directory = "", 
     initial_cmds = ["npm install"], 
-    env_file, 
     build_cmd = "node index.js",
     memory_limit = "512MB",
     timeout = 300000,
@@ -64,16 +62,6 @@ export async function runJobInContainer(job, workspaceDir, resourceManager) {
     // Prepare environment variables
     const envArgs = Object.entries(env).map(([key, value]) => `--env ${key}=${value}`).join(' ');
     
-    // Format the path for Docker volume mounting (handle Windows paths)
-    let formattedWorkDir = workDir;
-    
-    if (isWindows) {
-      // Convert Windows path to Docker-compatible path (e.g., C:\path\to\dir -> /c/path/to/dir)
-      formattedWorkDir = workDir
-        .replace(/\\/g, '/')
-        .replace(/^([A-Z]):/, (_, drive) => `/${drive.toLowerCase()}`);
-    }
-    
     // Prepare for raw code execution if needed
     if (submission_type === 'raw_code' && raw_code) {
       // Get appropriate filename from runtime config
@@ -83,6 +71,24 @@ export async function runJobInContainer(job, workspaceDir, resourceManager) {
       const sourceFilePath = path.join(workDir, filename);
       await fs.writeFile(sourceFilePath, raw_code);
       console.log(`[INFO] Created source file for job ${jobId}: ${filename}`);
+      
+      // For raw code, create a simple package.json if it's a Node.js runtime and dependencies are provided
+      if (runtime === 'nodejs' && dependencies && dependencies.length > 0) {
+        const packageJson = {
+          name: `job-${jobId}`,
+          version: "1.0.0",
+          dependencies: {}
+        };
+        
+        // Add dependencies to package.json
+        dependencies.forEach(dep => {
+          packageJson.dependencies[dep] = "latest";
+        });
+        
+        const packageJsonPath = path.join(workDir, 'package.json');
+        await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
+        console.log(`[INFO] Created package.json for job ${jobId} with dependencies: ${dependencies.join(', ')}`);
+      }
     }
     
     // Build the Docker command
@@ -154,7 +160,15 @@ function buildDockerCommand({
   if (isWindows) {
     // For Windows, use a different volume mount syntax
     if (submission_type === 'raw_code') {
-      // Raw code execution
+      // Raw code execution - only run initial_cmds if they're not the default npm install
+      const shouldRunInitialCmds = initial_cmds && 
+        initial_cmds.length > 0 && 
+        !(initial_cmds.length === 1 && initial_cmds[0] === 'npm install');
+      
+      const commandChain = shouldRunInitialCmds 
+        ? `${initial_cmds.join(' && ')} && ${build_cmd}`
+        : build_cmd;
+      
       return `docker run --rm ` +
         `--name e6data-${jobId} ` +
         `--memory=${memory_limit} ` +
@@ -162,8 +176,27 @@ function buildDockerCommand({
         `-v "${workDir}:/app" ` +
         `${envArgs} ` +
         `${dockerImage} ` +
-        `/bin/sh -c "${initial_cmds.join(' && ')} && ` +
-        `${build_cmd}"`;
+        `/bin/sh -c "${commandChain}"`;
+    } else if (submission_type === 'custom_image') {
+      // Custom Docker image execution
+      if (build_cmd && build_cmd !== 'node index.js') {
+        // If a custom build command is provided, use shell
+        return `docker run --rm ` +
+          `--name e6data-${jobId} ` +
+          `--memory=${memory_limit} ` +
+          `--workdir=/app ` +
+          `-v "${workDir}:/app" ` +
+          `${envArgs} ` +
+          `${dockerImage} ` +
+          `/bin/sh -c "${build_cmd}"`;
+      } else {
+        // No custom command, let the image run its default command
+        return `docker run --rm ` +
+          `--name e6data-${jobId} ` +
+          `--memory=${memory_limit} ` +
+          `${envArgs} ` +
+          `${dockerImage}`;
+      }
     } else {
       // Git repo execution
       return `docker run --rm ` +
@@ -181,7 +214,15 @@ function buildDockerCommand({
   } else {
     // For Unix systems
     if (submission_type === 'raw_code') {
-      // Raw code execution
+      // Raw code execution - only run initial_cmds if they're not the default npm install
+      const shouldRunInitialCmds = initial_cmds && 
+        initial_cmds.length > 0 && 
+        !(initial_cmds.length === 1 && initial_cmds[0] === 'npm install');
+      
+      const commandChain = shouldRunInitialCmds 
+        ? `${initial_cmds.join(' && ')} && ${build_cmd}`
+        : build_cmd;
+      
       return `docker run --rm \
         --name e6data-${jobId} \
         --memory=${memory_limit} \
@@ -190,8 +231,29 @@ function buildDockerCommand({
         -v ${workDir}:/app \
         ${envArgs} \
         ${dockerImage} \
-        /bin/sh -c "${initial_cmds.join(' && ')} && \
-        ${build_cmd}"`;
+        /bin/sh -c "${commandChain}"`;
+    } else if (submission_type === 'custom_image') {
+      // Custom Docker image execution
+      if (build_cmd && build_cmd !== 'node index.js') {
+        // If a custom build command is provided, use shell
+        return `docker run --rm \
+          --name e6data-${jobId} \
+          --memory=${memory_limit} \
+          --network=host \
+          --workdir=/app \
+          -v ${workDir}:/app \
+          ${envArgs} \
+          ${dockerImage} \
+          /bin/sh -c "${build_cmd}"`;
+      } else {
+        // No custom command, let the image run its default command
+        return `docker run --rm \
+          --name e6data-${jobId} \
+          --memory=${memory_limit} \
+          --network=host \
+          ${envArgs} \
+          ${dockerImage}`;
+      }
     } else {
       // Git repo execution
       return `docker run --rm \
@@ -218,11 +280,6 @@ function buildDockerCommand({
  * @returns {Promise<Object>} The execution result
  */
 async function executeDockerCommand(dockerCmd, jobId, timeout) {
-  // Remove any "sudo" if present in the command as it causes issues in some environments
-  dockerCmd = dockerCmd.replace(/^\s*sudo\s+/, '');
-  
-  console.log(`[CMD] Running command for job ${jobId}: ${dockerCmd}`);
-  
   return new Promise((resolve, reject) => {
     // Use cmd.exe on Windows and sh on Unix-like systems
     const process = isWindows 
@@ -249,16 +306,7 @@ async function executeDockerCommand(dockerCmd, jobId, timeout) {
         const trimmedChunk = chunk.trim();
         console.log(`[Job ${jobId}] ${trimmedChunk}`);
         
-        // Emit the output to WebSocket
-        if (global.io) {
-          global.io.to(`job-${jobId}`).emit('log', {
-            jobId,
-            type: 'stdout',
-            data: trimmedChunk
-          });
-        }
-        
-        // Only publish to Redis, don't save to DB yet
+        // Only publish to Redis (which will then emit to WebSocket via pubsub)
         try {
           // Store in memory only, don't save to DB
           await queueLogUpdate(jobId, 'stdout', trimmedChunk, false);
@@ -274,16 +322,7 @@ async function executeDockerCommand(dockerCmd, jobId, timeout) {
         const trimmedChunk = chunk.trim();
         console.error(`[Job ${jobId}] ${trimmedChunk}`);
         
-        // Emit the error to WebSocket
-        if (global.io) {
-          global.io.to(`job-${jobId}`).emit('log', {
-            jobId,
-            type: 'stderr',
-            data: trimmedChunk
-          });
-        }
-        
-        // Only publish to Redis, don't save to DB yet
+        // Only publish to Redis (which will then emit to WebSocket via pubsub)
         try {
           // Store in memory only, don't save to DB
           await queueLogUpdate(jobId, 'stderr', trimmedChunk, false);
